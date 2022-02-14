@@ -13,6 +13,8 @@ def year_week(date):
 class PurchaseOrdersConfig(luigi.Config):
     comment_patterns = luigi.DictParameter()
 
+# Config
+cfg = PurchaseOrdersConfig()
 
 class PurchaseOrders(luigi.Task):
     '''
@@ -215,7 +217,5 @@ class PoFinal(luigi.Task):
 
 if __name__ == '__main__':
 
-    # Config
-    cfg = PurchaseOrdersConfig()
     date = datetime.strptime('06/04/2020', '%d/%m/%Y').date()
     luigi.build([PoFinal(date=date)])
