@@ -44,6 +44,7 @@ class PurchaseOrders(luigi.Task):
             'Elemento PEP': 'pep',
             'Proveedor': 'id',
             'Nombre 1': 'supplier',
+            'Fecha documento': 'date_doc',
             'Fecha de entrega': 'date_del',
             'Fecha entrega estad.': 'date_stat',
             'Cantidad de reparto': 'qty',
@@ -86,7 +87,7 @@ class Comments(luigi.Task):
     '''
     Read Purchase Order comments from buyer files. Each buyer is provided with
     a file with their assigned PO's, and must provide updated comments about
-    the status. This comments must follow some rules.
+    the status.
     '''
     date = luigi.DateParameter()
 
@@ -104,7 +105,7 @@ class Comments(luigi.Task):
             'PO': 'po',
             'Pos': 'pos',
             'Ev': 'ev',
-            'OBS SOI': 'comments'
+            'OBS SOI': 'comment'
         }
         usecols = rename.keys()
         dfs = []
@@ -117,36 +118,25 @@ class Comments(luigi.Task):
         dfs = pd.concat(dfs)
         dfs = dfs.rename(columns=rename)
 
-        # Validate comments
-        dfs['comment_valid'] = dfs['comments'].apply(self.validate_comment)
         with self.output().temporary_path() as temp_out_path:
             dfs.to_csv(temp_out_path, index=False)
-
-    def validate_comment(self, comment):
-        '''
-        Comments are validated using reg expressions defined in luigi.cfg.
-        Each reg exp is defined as a dict:
-            - name: designation of the type of comment
-            - pattern: reg exp pattern
-            - validity: number of days in which the comment is valid
-        The comment date is the first capturing group in the reg exp pattern,
-        and this is compared with the date parameter.
-        '''
-        if pd.isnull(comment):
-            return False
-        else:
-            for p in cfg.comment_patterns:
-                m = re.match(p['pattern'], comment)
-                if m:
-                    comment_date = datetime.strptime(m[1], '%d/%m/%Y').date()
-                    validity = timedelta(days=p['validity'])
-                    return comment_date + validity <= self.date
-        return False
 
 
 class PoComments(luigi.Task):
     '''
-    Match PO's and comments
+    Join PO's and comments and validate.
+
+    Comments are validated using reg expressions defined in luigi.cfg. If the PO
+    was created less than a month ago, the comment (or lack of) is validated).
+
+    Each reg exp is defined as a dict:
+
+        - name: designation of the type of comment
+        - pattern: reg exp pattern
+        - validity: number of days in which the comment is valid
+
+    The comment date is the first capturing group in the reg exp pattern,
+    and this is compared with the date parameter.
     '''
     date = luigi.DateParameter()
 
@@ -162,12 +152,29 @@ class PoComments(luigi.Task):
 
     def run(self):
         index = ['po', 'pos', 'ev']
-        po = pd.read_csv(self.input()[0].path, index_col=index)
+        # Join PO's and comments
+        po = pd.read_csv(self.input()[0].path, index_col=index, parse_dates=['date_doc'])
         comments = pd.read_csv(self.input()[1].path, index_col=index)
         df = po.join(comments, how='left')
+        
+        #Validate comments
+        df['comment_valid'] = df.apply(self.validate_comment, axis=1)
         with self.output().temporary_path() as temp_out_path:
             df.to_csv(temp_out_path)
 
+    def validate_comment(self, row):
+        if row['date_doc'] >= pd.Timestamp(self.date - timedelta(days=30)):
+            return True
+        elif pd.isnull(row['comment']):
+            return False
+        else:
+            for p in cfg.comment_patterns:
+                m = re.match(p['pattern'], row['comment'])
+                if m:
+                    comment_date = datetime.strptime(m[1], '%d/%m/%Y').date()
+                    validity = timedelta(days=p['validity'])
+                    return comment_date + validity <= self.date
+        return False
 
 if __name__ == '__main__':
 
