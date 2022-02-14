@@ -42,7 +42,7 @@ class PurchaseOrders(luigi.Task):
             'Material': 'pn',
             'Grupo de compras': 'prchs_grp',
             'Elemento PEP': 'pep',
-            'Proveedor': 'id',
+            'Proveedor': 'supplier_id',
             'Nombre 1': 'supplier',
             'Fecha documento': 'date_doc',
             'Fecha de entrega': 'date_del',
@@ -62,7 +62,6 @@ class PurchaseOrders(luigi.Task):
         df = pd.read_excel(file, usecols=usecols)
         df = df.rename(columns=rename)
         df['delivered'] = df.apply(self.is_delivered, axis=1)
-        df = df[df['delivered'] == False]
         with self.output().temporary_path() as temp_out_path:
             df.to_csv(temp_out_path, index=False)
 
@@ -100,7 +99,7 @@ class Comments(luigi.Task):
         Buyers write commments in the files from previous weeks. We need to retrieve
         all these comments to match them with the current PO information from SAP.
         '''
-        path = f'data/input/{year_week(self.date)}/{year_week(self.date - timedelta(days=7))}'
+        path = f'data/input/{year_week(self.date)}/comments'
         rename = {
             'PO': 'po',
             'Pos': 'pos',
@@ -156,7 +155,7 @@ class PoComments(luigi.Task):
         po = pd.read_csv(self.input()[0].path, index_col=index, parse_dates=['date_doc'])
         comments = pd.read_csv(self.input()[1].path, index_col=index)
         df = po.join(comments, how='left')
-        
+
         #Validate comments
         df['comment_valid'] = df.apply(self.validate_comment, axis=1)
         with self.output().temporary_path() as temp_out_path:
@@ -176,9 +175,47 @@ class PoComments(luigi.Task):
                     return comment_date + validity <= self.date
         return False
 
+class PoFinal(luigi.Task):
+    '''
+    Join PO's with program, area and buyer information.
+    
+    Program is obtained from PEP, and relates to the product family which the
+    PN belongs to.
+
+    Area and buyer are obtained from Supplier ID, and indicate the department
+    and person responsible for a PO.
+    '''
+    date = luigi.DateParameter()
+
+    def requires(self):
+        return [
+            PoComments(date=self.date),
+        ]
+
+    def output(self):
+        file = f'data/output/{year_week(self.date)}/po_final.csv'
+        return luigi.LocalTarget(file)
+
+    def run(self):
+        # Join PO's and program info
+        po = pd.read_csv(self.input()[0].path)
+        pep = pd.read_csv('data/input/pep.csv')
+        df = po.merge(pep, on='pep', how='left')
+        df['pep'] = df['pep'].fillna('Others')
+        
+        # Join PO and supplier info
+        supplier = pd.read_csv('data/input/supplier.csv')
+        df = df.merge(supplier, on='supplier_id', how='left')
+        df = df.fillna({'buyer': 'external', 'area': 'external'})
+
+        #Validate comments
+        with self.output().temporary_path() as temp_out_path:
+            df.to_csv(temp_out_path)
+
+
 if __name__ == '__main__':
 
     # Config
     cfg = PurchaseOrdersConfig()
     date = datetime.strptime('06/04/2020', '%d/%m/%Y').date()
-    luigi.build([PoComments(date=date)])
+    luigi.build([PoFinal(date=date)])
