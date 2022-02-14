@@ -27,12 +27,16 @@ class QualityNotifications(luigi.Task):
         file = f'data/input/{year_week(self.date)}/qm11.xlsx'
         rename = {
             'Documento compras': 'po',
+            'Doc.compras': 'po',
             'Pos.docum.compras': 'pos',
-            'Cantidad reclamada': 'qty'
+            'Pos.doc.compr.': 'pos',
+            'Cantidad reclamada': 'qty',  # some files have different column names
+            'Cantidad recl.': 'qty'
         }
-        usecols = rename.keys()
-        df = pd.read_excel(file, usecols=usecols)
+        cols = ['po', 'pos', 'qty']
+        df = pd.read_excel(file)
         df = df.rename(columns=rename)
+        df = df[cols]
         with self.output().temporary_path() as temp_out_path:
             df.to_csv(temp_out_path, index=False)
 
@@ -55,7 +59,8 @@ class QnFinal(luigi.Task):
     def run(self):
         # Join PO's and QN's
         index = ['po', 'pos']
-        usecols = ['po', 'pos', 'ev', 'supplier_id', 'supplier', 'program']        
+        usecols = ['po', 'pos', 'ev', 'area', 'buyer',
+            'supplier_id', 'supplier', 'program']   
         po = pd.read_csv(self.input()[0].path, usecols=usecols)
         po = po.drop_duplicates(subset=index)
         po = po.set_index(index)

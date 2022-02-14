@@ -114,7 +114,11 @@ class Comments(luigi.Task):
         # Compile all comments
         for f in os.listdir(path):
             if '.xlsx' in f:
-                df = pd.read_excel(os.path.join(path, f), usecols=usecols)
+                try:
+                    df = pd.read_excel(os.path.join(path, f), usecols=usecols)
+                except Exception as e:
+                    # TODO notify
+                    pass
                 dfs.append(df)
         dfs = pd.concat(dfs)
         dfs = dfs.rename(columns=rename)
@@ -172,9 +176,13 @@ class PoComments(luigi.Task):
             for p in cfg.comment_patterns:
                 m = re.match(p['pattern'], row['comment'])
                 if m:
-                    comment_date = datetime.strptime(m[1], '%d/%m/%Y').date()
-                    validity = timedelta(days=p['validity'])
-                    return comment_date + validity <= self.date
+                    try:  # dates are input manually
+                        comment_date = datetime.strptime(m[1], '%d/%m/%Y').date()
+                        validity = timedelta(days=p['validity'])
+                        return comment_date + validity <= self.date
+                    except ValueError as e:
+                        # TODO log errors
+                        return False
         return False
 
 class PoFinal(luigi.Task):
@@ -204,7 +212,7 @@ class PoFinal(luigi.Task):
         pep = pd.read_csv('data/input/pep.csv')
         df = po.merge(pep, on='pep', how='left')
         df['pep'] = df['pep'].fillna('Others')
-        
+
         # Join PO and supplier info
         supplier = pd.read_csv('data/input/supplier.csv')
         df = df.merge(supplier, on='supplier_id', how='left')
