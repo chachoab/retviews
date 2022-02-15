@@ -13,6 +13,7 @@ And combines it to extract some KPIs at the supplier, area and buyer level:
  - Nº comments following guidelines.
  - Nº of rejections.
 
+The source data is provided as weekly batches of .xlsx files.
 
  ## Purchase orders
  Each line in the source file is a single PO-Position-Event.
@@ -40,3 +41,8 @@ Quality notifications (QN) are incidences detected on the Part Numbers upon deli
 
 ## KPIs
 The final KPI's are calculated and stored at the supplier, area and buyer level.
+
+## Data pipeline
+This is the diagram of the pipeline for a single batch.
+
+![](assignment/pipeline.png)
