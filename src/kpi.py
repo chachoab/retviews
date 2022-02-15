@@ -3,10 +3,7 @@ import pandas as pd
 from datetime import timedelta
 from purchase_orders import PoFinal
 from quality_notifications import QnFinal
-
-
-def year_week(date):
-    return f'{date.year}-{date.isocalendar()[1]}'
+from utils import year_week
 
 
 class KpiDeliveries(luigi.Task):

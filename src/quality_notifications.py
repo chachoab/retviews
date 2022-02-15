@@ -5,9 +5,8 @@ import json
 import re
 from datetime import timedelta, datetime
 from purchase_orders import PoFinal
+from utils import year_week
 
-def year_week(date):
-    return f'{date.year}-{date.isocalendar()[1]}'
 
 class QualityNotifications(luigi.Task):
     '''
@@ -39,6 +38,7 @@ class QualityNotifications(luigi.Task):
         df = df[cols]
         with self.output().temporary_path() as temp_out_path:
             df.to_csv(temp_out_path, index=False)
+
 
 class QnFinal(luigi.Task):
     '''

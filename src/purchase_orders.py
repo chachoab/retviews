@@ -4,10 +4,7 @@ import pandas as pd
 import json
 import re
 from datetime import timedelta, datetime
-
-
-def year_week(date):
-    return f'{date.year}-{date.isocalendar()[1]}'
+from utils import year_week
 
 
 class PurchaseOrdersConfig(luigi.Config):
@@ -15,6 +12,7 @@ class PurchaseOrdersConfig(luigi.Config):
 
 # Config
 cfg = PurchaseOrdersConfig()
+
 
 class PurchaseOrders(luigi.Task):
     '''
@@ -184,6 +182,7 @@ class PoComments(luigi.Task):
                         # TODO log errors
                         return False
         return False
+
 
 class PoFinal(luigi.Task):
     '''
